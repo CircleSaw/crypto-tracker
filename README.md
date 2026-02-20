@@ -20,6 +20,10 @@ Uygulama Electron ile arayüz olarak çalışır ve Python (Flask) ile yazılmı
 - CoinGecko API  
 - HTML / CSS / Bootstrap  
 
+## Ekran Görüntüsü
+
+![Uygulama Ekranı](app.png)
+
 ## Nasıl Çalıştırılır?
 
 ### Backend başlatma
