@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kripto Takip Tool</title>
+    <style>
+        
+        body {
+            background-color: rgb(46, 45, 45);
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #fff;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        select,
+        button,
+        input {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+        }
+
+        button {
+            background-color: #6200ea;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #3700b3;
+        }
+
+        #cryptoTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        #cryptoTable th,
+        #cryptoTable td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #cryptoTable th {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        #cryptoTable tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .change-positive {
+            color: #00ff00;
+        }
+
+        .change-negative {
+            color: #ff0000;
+        }
+
+        .pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="input-group">
+            <select id="currencySelect">
+                <option value="usd">USD</option>
+                <option value="eur">EUR</option>
+                <option value="gbp">GBP</option>
+                <option value="jpy">JPY</option>
+                <option value="cny">CNY</option>
+                <option value="chf">CHF</option>
+                <option value="aud">AUD</option>
+                <option value="cad">CAD</option>
+            </select>
+
+            <input class="form-input" type="text" id="search" placeholder="Koin ara...">
+            <button id="searchButton">Filtre Uygula</button>
+        </div>
+
+        <table id="cryptoTable">
+            <thead>
+                <tr>
+                    <th>Sıra</th>
+                    <th>Koin</th>
+                    <th>Fiyat</th>
+                    <th>Değişim %</th>
+                </tr>
+            </thead>
+            <tbody id="cryptoTableBody"></tbody>
+        </table>
+
+        <div class="pagination">
+            <button id="prevPage">Önceki</button>
+            <button id="nextPage">Sonraki</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require("electron");
+
+        const currencySelect = document.querySelector("#currencySelect");
+        const cryptoTableBody = document.querySelector("#cryptoTableBody");
+        const searchInput = document.querySelector("#search");
+        const searchButton = document.querySelector("#searchButton");
+        const prevPageButton = document.querySelector("#prevPage");
+        const nextPageButton = document.querySelector("#nextPage");
+
+        let sessionData = [];
+        let currentPage = 1;
+        const itemsPerPage = 8;
+
+        function updateTable(data, search = "") {
+            cryptoTableBody.innerHTML = "";
+            let filteredData = data.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
+
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageData = filteredData.slice(start, end);
+
+            if (pageData.length === 0) {
+                cryptoTableBody.innerHTML = `<tr><td colspan="4">Sonuç bulunamadı</td></tr>`;
+                return;
+            }
+
+            pageData.forEach((item, index) => {
+                const row = document.createElement("tr");
+                const changeClass = item.change_24h >= 0 ? "change-positive" : "change-negative";
+                row.innerHTML = `
+                    <td>${start + index + 1}</td>
+                    <td>${item.name}</td>
+                    <td>${item.price} ${currencySelect.value.toUpperCase()}</td>
+                    <td class="${changeClass}">${item.change_24h.toFixed(2)}%</td>
+                `;
+                cryptoTableBody.appendChild(row);
+            });
+        }
+
+        function fetchCryptoData() {
+            const currency = currencySelect.value;
+            ipcRenderer.send("key:getCryptoList", { currency });
+        }
+
+        ipcRenderer.on("key:cryptoResponse", (event, data) => {
+            if (data.status === "success") {
+                sessionStorage.setItem("cryptoData", JSON.stringify(data));
+                sessionData = data.list;
+                currentPage = 1;
+                updateTable(sessionData, searchInput.value);
+            } else {
+                cryptoTableBody.innerHTML = `<tr><td colspan="4">Hata: ${data.message}</td></tr>`;
+            }
+        });
+
+        searchButton.addEventListener("click", () => {
+            currentPage = 1;
+            updateTable(sessionData, searchInput.value);
+        });
+
+        currencySelect.addEventListener("change", () => {
+            currentPage = 1;
+            updateTable(sessionData, searchInput.value);
+        });
+
+        prevPageButton.addEventListener("click", () => {
+            if (currentPage > 1) {
+                currentPage--;
+                updateTable(sessionData, searchInput.value);
+            }
+        });
+
+        nextPageButton.addEventListener("click", () => {
+            const filteredData = sessionData.filter(item => item.name.toLowerCase().includes(searchInput.value.toLowerCase()));
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updateTable(sessionData, searchInput.value);
+            }
+        });
+
+        setInterval(fetchCryptoData, 20000);
+
+        window.onload = () => {
+            const storedData = sessionStorage.getItem("cryptoData");
+            if (storedData) {
+                const parsed = JSON.parse(storedData);
+                sessionData = parsed.list;
+                updateTable(sessionData);
+            } else {
+                fetchCryptoData();
+            }
+        };
+    </script>
+</body>
+
+</html>
